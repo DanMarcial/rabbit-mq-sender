@@ -1,7 +1,7 @@
 package com.example.rabbitmq_publisher_sender;
 
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -17,28 +17,18 @@ public class Sender {
 	}
 
 	@Bean
-	public RabbitTemplate rabbitTemplate() {
-		CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
-		connectionFactory.setUsername("guest");
-		connectionFactory.setPassword("guest");
-		connectionFactory.setAddresses("localhost:30000,localhost:30002,localhost:30004");
-		connectionFactory.setChannelCacheSize(10);
-
-		return new RabbitTemplate(connectionFactory);
-	}
-
-	@Bean
-	public CommandLineRunner runner(RabbitTemplate rabbitTemplate) {
+	public CommandLineRunner runner(RabbitTemplate rabbitTemplate,
+									@Value("${app.queue-name}") String queueName) {
 		return args -> {
 			Scanner scanner = new Scanner(System.in);
-			System.out.println("Enter messages to send to 'q.example'. Type 'exit' to quit.");
+			System.out.println("Enter messages to send to '" + queueName + "'. Type 'exit' to quit.");
 			while (true) {
 				System.out.print("Message: ");
 				String message = scanner.nextLine();
 				if ("exit".equalsIgnoreCase(message)) {
 					break;
 				}
-				rabbitTemplate.convertAndSend("q.example", message);
+				rabbitTemplate.convertAndSend(queueName, message);
 				System.out.println("Sent: " + message);
 			}
 			scanner.close();

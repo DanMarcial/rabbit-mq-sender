@@ -1,0 +1,89 @@
+services:
+  rabbitmq1:
+    image: rabbitmq:3-management
+    hostname: rabbit1
+    container_name: rabbitmq1
+    ports:
+      - "30000:5672"
+      - "30001:15672"
+    environment: &rabbitmq-env
+      RABBITMQ_ERLANG_COOKIE: "rabbitmq-cluster-cookie"
+      RABBITMQ_DEFAULT_USER: "guest"
+      RABBITMQ_DEFAULT_PASS: "guest"
+    volumes:
+      - rabbitmq1_data:/var/lib/rabbitmq
+    networks:
+      - rabbitmq_cluster
+    healthcheck: &rabbitmq-health
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  rabbitmq2:
+    image: rabbitmq:3-management
+    hostname: rabbit2
+    container_name: rabbitmq2
+    ports:
+      - "30002:5672"
+      - "30003:15672"
+    environment: *rabbitmq-env
+    volumes:
+      - rabbitmq2_data:/var/lib/rabbitmq
+    networks:
+      - rabbitmq_cluster
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+    command: >
+      bash -c "
+        docker-entrypoint.sh rabbitmq-server &
+        pid=$$!
+        until rabbitmq-diagnostics -q ping; do sleep 3; done
+        sleep 10
+        rabbitmqctl stop_app
+        rabbitmqctl join_cluster rabbit@rabbit1
+        rabbitmqctl start_app
+        wait $$pid
+      "
+    healthcheck: *rabbitmq-health
+
+  rabbitmq3:
+    image: rabbitmq:3-management
+    hostname: rabbit3
+    container_name: rabbitmq3
+    ports:
+      - "30004:5672"
+      - "30005:15672"
+    environment: *rabbitmq-env
+    volumes:
+      - rabbitmq3_data:/var/lib/rabbitmq
+    networks:
+      - rabbitmq_cluster
+    depends_on:
+      rabbitmq1:
+        condition: service_healthy
+      rabbitmq2:
+        condition: service_healthy
+    command: >
+      bash -c "
+        docker-entrypoint.sh rabbitmq-server &
+        pid=$$!
+        until rabbitmq-diagnostics -q ping; do sleep 3; done
+        sleep 10
+        rabbitmqctl stop_app
+        rabbitmqctl join_cluster rabbit@rabbit1
+        rabbitmqctl start_app
+        wait $$pid
+      "
+    healthcheck: *rabbitmq-health
+
+volumes:
+  rabbitmq1_data:
+  rabbitmq2_data:
+  rabbitmq3_data:
+
+networks:
+  rabbitmq_cluster:
+    driver: bridge
